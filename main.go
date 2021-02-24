@@ -29,6 +29,8 @@ type Color struct {
 	b uint8
 }
 
+type ColorGradient func(gradient float64) Color
+
 func rainbow(gradient float64) Color {
 	c := colorful.Hsv(359.0*gradient, 1.0, 1.0)
 	r, g, b := c.RGB255()
@@ -57,10 +59,29 @@ func makeFrame(image []Color) []byte {
 	}
 
 	return buf.Bytes()
-
 }
 
-func perlinNoise(conn net.Conn, color func(gradient float64) Color) {
+func imageFromGradient(gradient []float64, color ColorGradient) []Color {
+	image := make([]Color, len(gradient))
+	for i := 0; i < len(gradient); i++ {
+		image[i] = color(gradient[i])
+	}
+	return image
+}
+
+func normalize(gradient []float64) {
+	min := math.Inf(+1)
+	max := math.Inf(-1)
+	for i := 0; i < len(gradient); i++ {
+		min = math.Min(min, gradient[i])
+		max = math.Max(max, gradient[i])
+	}
+	for i := 0; i < len(gradient); i++ {
+		gradient[i] = (gradient[i] - min) / (max - min)
+	}
+}
+
+func perlinNoise(conn net.Conn, color ColorGradient) {
 	randSource := rand.NewSource(time.Now().UnixNano())
 	n := 2
 	p := perlin.NewPerlinRandSource(2, 2, n, randSource)
@@ -68,24 +89,23 @@ func perlinNoise(conn net.Conn, color func(gradient float64) Color) {
 	max := math.Inf(-1)
 
 	for i := 0; true; i++ {
-		var image [WIDTH * HEIGHT]float64
+		gradient := make([]float64, WIDTH*HEIGHT)
 
 		for y := 0; y < HEIGHT; y++ {
 			for x := 0; x < WIDTH; x++ {
 				val := p.Noise2D((float64(x)+float64(i)/8)/WIDTH, (float64(y)+float64(i)/5)/HEIGHT)
 				min = math.Min(min, val)
 				max = math.Max(max, val)
-				image[y*WIDTH+x] = val
+				gradient[y*WIDTH+x] = val
 			}
 		}
 
-		pixels := make([]Color, len(image))
-		for i := 0; i < len(image); i++ {
-			gradient := (image[i] - min) / (max - min)
-			pixels[i] = color(gradient)
+		// Normalize over whole run time.
+		for i := 0; i < len(gradient); i++ {
+			gradient[i] = (gradient[i] - min) / (max - min)
 		}
 
-		conn.Write(makeFrame(pixels))
+		conn.Write(makeFrame(imageFromGradient(gradient, color)))
 		time.Sleep(10 * time.Millisecond)
 	}
 }
@@ -93,21 +113,22 @@ func perlinNoise(conn net.Conn, color func(gradient float64) Color) {
 // https://github.com/adonovan/gopl.io/blob/master/ch1/lissajous/main.go
 func lissajous(conn net.Conn) {
 	const (
-		cycles = 1    // number of complete x oscillator revolutions
+		cycles = 2    // number of complete x oscillator revolutions
 		res    = 0.01 // angular resolution
 	)
 	freq := rand.Float64() * 3.0
 	phase := 0.0 // phase difference
 	for i := 0; i < 10000; i++ {
-		image := make([]Color, WIDTH*HEIGHT)
+		gradient := make([]float64, WIDTH*HEIGHT)
 		for t := 0.0; t < cycles*2*math.Pi; t += res {
 			x := math.Sin(t)
 			y := math.Sin(t*freq + phase)
 			ix := int(WIDTH * (1.0 + x) / 2.0)
 			iy := int(HEIGHT * (1.0 + y) / 2.0)
-			image[iy*WIDTH+ix] = Color{0, 255, 0}
+			gradient[iy*WIDTH+ix]++
 		}
-		conn.Write(makeFrame(image))
+		normalize(gradient)
+		conn.Write(makeFrame(imageFromGradient(gradient, rainbow)))
 		time.Sleep(10 * time.Millisecond)
 		phase += 0.05
 	}
