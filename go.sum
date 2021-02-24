@@ -1,2 +1,4 @@
 github.com/aquilax/go-perlin v1.0.0 h1:7KBttX3KwqipwhmIVE/B2cEZVYiOZpoE/q8HsS6HBoQ=
 github.com/aquilax/go-perlin v1.0.0/go.mod h1:z9Rl7EM4BZY0Ikp2fEN1I5mKSOJ26HQpk0O2TBdN2HE=
+github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
+github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
